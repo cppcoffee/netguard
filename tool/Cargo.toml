@@ -1,0 +1,21 @@
+[package]
+name = "tool"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "netguard-tool"
+path = "src/bin/tool.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+pnet = { workspace = true }
+
+# crypto
+rand = { workspace = true }
+rsa = { workspace = true }
+
+crypto = { workspace = true }

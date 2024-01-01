@@ -1,0 +1,53 @@
+[setting]
+# netfilter queue start number
+queue_start = 0
+# netfilter queue count
+queue_count = 2
+
+worker_priority = -20
+
+# TODO: performance tuning
+# cpu_affinity = 0xffffffff
+
+# TODO: other
+# rlimit_core = unlimited
+# rlimit_nofile = unlimited
+
+[auth]
+# knock listen udp/tcp port
+port = 53
+# protocol allow "udp" and "tcp"
+protocol = "udp"
+# public key for signing certificates
+key = ".netguard/rsa.pub"
+# allow client-server time differences.
+#  time skew 1min. unit: seconds
+allow_skew = 60
+
+[log]
+path = "/tmp/error.log"
+level = "error"
+
+[filter]
+# N minutes have passed since the last packet was sent.
+#  5min, unit: seconds
+connection_timeout = 300
+# reclaim interval.
+#  1min. unit: seconds
+reclaim_interval = 60
+
+# TODO: more filter
+# allow_ips = ["192.168.1.0/24"]
+
+[filter.tcp]
+# filter tcp 8000 port
+ports = [8000]
+# reject tcp port scan
+reject = true
+
+[filter.udp]
+# filter udp 5000 port
+ports = [5000]
+# reject udp port scan
+reject = true
+

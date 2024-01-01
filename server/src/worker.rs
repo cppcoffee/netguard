@@ -1,0 +1,242 @@
+use std::net::IpAddr;
+use std::sync::Arc;
+use std::thread;
+use std::time::Instant;
+
+use anyhow::{anyhow, Result};
+use nfq::{Queue, Verdict};
+use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+use pnet::packet::ipv4::Ipv4Packet;
+use pnet::packet::tcp::TcpPacket;
+use pnet::packet::udp::UdpPacket;
+use pnet::packet::Packet;
+use rsa::pkcs1::DecodeRsaPublicKey;
+use rsa::pkcs1v15::VerifyingKey;
+use rsa::sha2::Sha256;
+use rsa::RsaPublicKey;
+use tracing::{debug, error, info};
+
+use crate::{util, Config, ConntrackEntry, ConntrackMap, Protocol, Sender};
+
+pub struct Worker {
+    queue_num: u16,
+    config: Arc<Config>,
+    conntrack_map: Arc<ConntrackMap>,
+    verifying_key: VerifyingKey<Sha256>,
+}
+
+impl Worker {
+    pub fn new(
+        config: Arc<Config>,
+        queue_num: u16,
+        conntrack_map: Arc<ConntrackMap>,
+    ) -> Result<Worker> {
+        let public_key = RsaPublicKey::read_pkcs1_pem_file(&config.auth.key)?;
+        let verifying_key = VerifyingKey::<Sha256>::new(public_key);
+
+        Ok(Worker {
+            config,
+            queue_num,
+            conntrack_map,
+            verifying_key,
+        })
+    }
+
+    pub fn start(self) -> Result<()> {
+        let queue_num = self.queue_num;
+
+        let mut queue = Queue::open()?;
+        queue.bind(queue_num)?;
+        queue.set_fail_open(queue_num, false)?;
+        queue.set_recv_conntrack(queue_num, true)?;
+
+        queue.set_recv_security_context(queue_num, true)?;
+        queue.set_recv_uid_gid(queue_num, true)?;
+
+        let mut sender = Sender::new()?;
+
+        thread::spawn(move || {
+            if let Err(e) = util::set_thread_priority() {
+                error!("nfq {queue_num} failed to set thread priority: {e}");
+                return;
+            }
+
+            loop {
+                if let Err(e) = self.handle_event(&mut sender, &mut queue) {
+                    error!("nfq {queue_num} failed handle event: {e}");
+                    continue;
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    fn handle_event(&self, sender: &mut Sender, queue: &mut Queue) -> Result<()> {
+        let mut verdict = Verdict::Drop;
+        let mut msg = queue.recv()?;
+        let payload = msg.get_payload();
+        let version = (payload[0] >> 4) & 0xF;
+
+        match version {
+            4 => verdict = self.handle_ipv4_packet(sender, payload)?,
+            // TODO: implement ipv6
+            //6 => verdict = self.handle_ipv6_packet(sender, payload)?,
+            x => error!("nfq {} received unknown IP version: {x}", self.queue_num),
+        }
+
+        msg.set_verdict(verdict);
+        queue.verdict(msg)?;
+
+        Ok(())
+    }
+
+    fn handle_ipv4_packet(&self, sender: &mut Sender, payload: &[u8]) -> Result<Verdict> {
+        let ip_header = Ipv4Packet::new(payload).ok_or(anyhow!("Malformed IPv4 packet"))?;
+
+        let source = IpAddr::V4(ip_header.get_source());
+        let destination = IpAddr::V4(ip_header.get_destination());
+        let protocol = ip_header.get_next_level_protocol();
+
+        let ip_packet = util::packet_header(&ip_header);
+
+        let verdict = self.handle_transport_protocol(
+            sender,
+            source,
+            destination,
+            protocol,
+            ip_packet,
+            ip_header.payload(),
+        )?;
+
+        Ok(verdict)
+    }
+
+    fn handle_transport_protocol(
+        &self,
+        sender: &mut Sender,
+        src_ip: IpAddr,
+        dst_ip: IpAddr,
+        protocol: IpNextHeaderProtocol,
+        ip_packet: &[u8],
+        payload: &[u8],
+    ) -> Result<Verdict> {
+        match protocol {
+            IpNextHeaderProtocols::Udp => {
+                let verdict = self.handle_udp_packet(sender, src_ip, dst_ip, ip_packet, payload)?;
+                return Ok(verdict);
+            }
+            IpNextHeaderProtocols::Tcp => {
+                let verdict = self.handle_tcp_packet(sender, src_ip, dst_ip, payload)?;
+                return Ok(verdict);
+            }
+            _ => {
+                debug!(
+                    "nfq {} unknown transport protocol: {protocol}",
+                    self.queue_num
+                );
+            }
+        }
+
+        Ok(Verdict::Drop)
+    }
+
+    fn handle_udp_packet(
+        &self,
+        sender: &mut Sender,
+        src_ip: IpAddr,
+        dst_ip: IpAddr,
+        ip_packet: &[u8],
+        payload: &[u8],
+    ) -> Result<Verdict> {
+        let queue_num = self.queue_num;
+        let udp_header = UdpPacket::new(payload).ok_or(anyhow!("Malformed UDP packet"))?;
+        let src_port = udp_header.get_source();
+        let dst_port = udp_header.get_destination();
+        let mut entry = ConntrackEntry::new(src_ip, dst_ip, dst_port, Protocol::Udp);
+
+        debug!("nfq {queue_num} UDP packet from {src_ip}:{src_port} to {dst_ip}:{dst_port}");
+
+        if self.is_auth_port(Protocol::Udp, dst_port) {
+            let payload = udp_header.payload();
+
+            match crypto::verify_packet(payload, &self.verifying_key, self.config.auth.allow_skew) {
+                Ok(knock_info) => {
+                    entry.dst_port = knock_info.unlock_port;
+
+                    info!(
+                        "nfq {queue_num} allow {:?}, timestamp: {}",
+                        entry, knock_info.timestamp
+                    );
+
+                    self.conntrack_map.add_entry(entry)?;
+                }
+                Err(e) => {
+                    debug!("nfq {queue_num} malformed auth packet from {src_ip}:{src_port}: {e}")
+                }
+            }
+        } else if let Some(inst) = self.conntrack_map.get_timestamp(&entry)? {
+            // avoid updating timestamp every time
+            if Instant::now().duration_since(inst).as_secs() > 0 {
+                self.conntrack_map.update_timestamp(entry)?;
+            }
+
+            return Ok(Verdict::Accept);
+        }
+
+        sender.emit_icmpv4_unreachable(&src_ip, ip_packet, &udp_header)?;
+
+        Ok(Verdict::Drop)
+    }
+
+    fn handle_tcp_packet(
+        &self,
+        sender: &mut Sender,
+        src_ip: IpAddr,
+        dst_ip: IpAddr,
+        payload: &[u8],
+    ) -> Result<Verdict> {
+        let queue_num = self.queue_num;
+        let tcp_header = TcpPacket::new(payload).ok_or(anyhow!("Malformed TCP packet"))?;
+        let src_port = tcp_header.get_source();
+        let dst_port = tcp_header.get_destination();
+        let mut entry = ConntrackEntry::new(src_ip, dst_ip, dst_port, Protocol::Tcp);
+
+        debug!("nfq {queue_num} TCP packet from {src_ip}:{src_port} to {dst_ip}:{dst_port}");
+
+        if self.is_auth_port(Protocol::Tcp, dst_port) {
+            let payload = tcp_header.payload();
+
+            match crypto::verify_packet(payload, &self.verifying_key, self.config.auth.allow_skew) {
+                Ok(knock_info) => {
+                    entry.dst_port = knock_info.unlock_port;
+
+                    info!(
+                        "nfq {queue_num} allow {:?}, timestamp: {}",
+                        entry, knock_info.timestamp
+                    );
+
+                    self.conntrack_map.add_entry(entry)?;
+                }
+                Err(e) => {
+                    debug!("nfq {queue_num} malformed auth packet from {src_ip}:{src_port}: {e}")
+                }
+            }
+        } else if let Some(inst) = self.conntrack_map.get_timestamp(&entry)? {
+            // avoid updating timestamp every time
+            if Instant::now().duration_since(inst).as_secs() > 0 {
+                self.conntrack_map.update_timestamp(entry)?;
+            }
+
+            return Ok(Verdict::Accept);
+        }
+
+        sender.emit_tcp_rst(&src_ip, &dst_ip, &tcp_header)?;
+
+        Ok(Verdict::Drop)
+    }
+
+    fn is_auth_port(&self, protocol: Protocol, dst_port: u16) -> bool {
+        self.config.auth.protocol == protocol && self.config.auth.port == dst_port
+    }
+}
