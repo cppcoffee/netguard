@@ -92,6 +92,7 @@ pub fn set_process_priority(n: i32) {
 mod tests {
     use super::*;
     use pnet::packet::udp::UdpPacket;
+    use std::net::Ipv4Addr;
 
     #[test]
     fn test_build_icmpv4_unreachable() {
@@ -136,9 +137,9 @@ mod tests {
         let mut buffer = vec![0u8; 128];
         let tcp_reset = build_tcp_reset(
             &mut buffer[..tcp_min_size],
-            &incoming,
             &IpAddr(Ipv4Addr::new(1, 1, 1, 1)),
             &IpAddr(Ipv4Addr::new(2, 2, 2, 2)),
+            &incoming,
         )
         .unwrap();
 
