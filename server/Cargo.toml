@@ -37,6 +37,7 @@ tracing-subscriber = { version = "0.3", features = ["std", "fmt", "env-filter"] 
 humantime = "2.1"
 
 signal-hook = { version = "0.3", features = ["iterator", "extended-siginfo"] }
+rlimit = "0.10"
 
 # mallocator
 tikv-jemallocator = "0.5"

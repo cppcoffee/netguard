@@ -82,10 +82,16 @@ pub fn set_thread_priority() -> Result<()> {
     Ok(())
 }
 
+#[inline]
 pub fn set_process_priority(n: i32) {
     unsafe {
         libc::nice(n);
     }
+}
+
+#[inline]
+pub fn set_rlimit_nofile(n: u64) -> Result<u64> {
+    rlimit::increase_nofile_limit(n)
 }
 
 #[cfg(test)]

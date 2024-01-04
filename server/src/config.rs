@@ -17,6 +17,7 @@ pub struct Setting {
     pub queue_start: u16,
     pub queue_count: u16,
     pub worker_priority: i32,
+    pub worker_rlimit_nofile: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,6 +74,10 @@ impl Config {
             bail!("queue_count must be greater than 0");
         }
 
+        if self.setting.worker_rlimit_nofile == 0 {
+            bail!("worker_rlimit_nofile must be greater than 0");
+        }
+
         if !self.auth.key.exists() {
             bail!("auth key file not found: {}", self.auth.key.display());
         }
@@ -104,6 +109,7 @@ mod tests {
                 queue_start: 0,
                 queue_count: 0,
                 worker_priority: 0,
+                worker_rlimit_nofile: 100000,
             },
             auth: Auth {
                 port: 0,
