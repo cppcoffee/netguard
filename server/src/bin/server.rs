@@ -42,6 +42,7 @@ fn main() -> Result<()> {
     setup_logger();
 
     util::set_process_priority(config.setting.worker_priority);
+    util::set_rlimit_nofile(config.setting.worker_rlimit_nofile)?;
 
     let conntrack_map = Arc::new(ConntrackMap::new());
 

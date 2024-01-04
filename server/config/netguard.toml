@@ -5,6 +5,7 @@ queue_start = 0
 queue_count = 2
 
 worker_priority = -20
+worker_rlimit_nofile = 200000
 
 # TODO: performance tuning
 # cpu_affinity = 0xffffffff
@@ -25,7 +26,7 @@ key = ".netguard/rsa.pub"
 allow_skew = 60
 
 [log]
-path = "/tmp/error.log"
+path = "logs/error.log"
 level = "error"
 
 [filter]
