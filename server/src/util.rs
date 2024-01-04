@@ -91,7 +91,8 @@ pub fn set_process_priority(n: i32) {
 
 #[inline]
 pub fn set_rlimit_nofile(n: u64) -> Result<u64> {
-    rlimit::increase_nofile_limit(n)
+    let value = rlimit::increase_nofile_limit(n)?;
+    Ok(value)
 }
 
 #[cfg(test)]
