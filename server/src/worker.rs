@@ -62,7 +62,7 @@ impl Worker {
             }
 
             loop {
-                if let Err(e) = self.handle_event(&mut sender, &mut queue) {
+                if let Err(e) = self.event_handler(&mut sender, &mut queue) {
                     error!("nfq {queue_num} failed handle event: {e}");
                     continue;
                 }
@@ -72,14 +72,14 @@ impl Worker {
         Ok(())
     }
 
-    fn handle_event(&self, sender: &mut Sender, queue: &mut Queue) -> Result<()> {
+    fn event_handler(&self, sender: &mut Sender, queue: &mut Queue) -> Result<()> {
         let mut verdict = Verdict::Drop;
         let mut msg = queue.recv()?;
         let payload = msg.get_payload();
         let version = (payload[0] >> 4) & 0xF;
 
         match version {
-            4 => verdict = self.handle_ipv4_packet(sender, payload)?,
+            4 => verdict = self.ipv4_packet_handler(sender, payload)?,
             // TODO: implement ipv6
             //6 => verdict = self.handle_ipv6_packet(sender, payload)?,
             x => error!("nfq {} received unknown IP version: {x}", self.queue_num),
@@ -91,7 +91,7 @@ impl Worker {
         Ok(())
     }
 
-    fn handle_ipv4_packet(&self, sender: &mut Sender, payload: &[u8]) -> Result<Verdict> {
+    fn ipv4_packet_handler(&self, sender: &mut Sender, payload: &[u8]) -> Result<Verdict> {
         let ip_header = Ipv4Packet::new(payload).ok_or(anyhow!("Malformed IPv4 packet"))?;
 
         let source = IpAddr::V4(ip_header.get_source());
@@ -100,7 +100,7 @@ impl Worker {
 
         let ip_packet = util::packet_header(&ip_header);
 
-        let verdict = self.handle_transport_protocol(
+        let verdict = self.transport_protocol_handler(
             sender,
             source,
             destination,
@@ -112,7 +112,7 @@ impl Worker {
         Ok(verdict)
     }
 
-    fn handle_transport_protocol(
+    fn transport_protocol_handler(
         &self,
         sender: &mut Sender,
         src_ip: IpAddr,
@@ -123,11 +123,12 @@ impl Worker {
     ) -> Result<Verdict> {
         match protocol {
             IpNextHeaderProtocols::Udp => {
-                let verdict = self.handle_udp_packet(sender, src_ip, dst_ip, ip_packet, payload)?;
+                let verdict =
+                    self.udp_packet_handler(sender, src_ip, dst_ip, ip_packet, payload)?;
                 return Ok(verdict);
             }
             IpNextHeaderProtocols::Tcp => {
-                let verdict = self.handle_tcp_packet(sender, src_ip, dst_ip, payload)?;
+                let verdict = self.tcp_packet_handler(sender, src_ip, dst_ip, payload)?;
                 return Ok(verdict);
             }
             _ => {
@@ -141,7 +142,7 @@ impl Worker {
         Ok(Verdict::Drop)
     }
 
-    fn handle_udp_packet(
+    fn udp_packet_handler(
         &self,
         sender: &mut Sender,
         src_ip: IpAddr,
@@ -189,7 +190,7 @@ impl Worker {
         Ok(Verdict::Drop)
     }
 
-    fn handle_tcp_packet(
+    fn tcp_packet_handler(
         &self,
         sender: &mut Sender,
         src_ip: IpAddr,
