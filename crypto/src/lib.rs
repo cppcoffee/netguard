@@ -3,7 +3,7 @@ mod keygen;
 mod protocol;
 mod verifing;
 
-pub use builder::build_packet;
+pub use builder::build_knock_packet;
 pub use keygen::rsa_keygen;
 pub use protocol::NetGuardData;
 pub use verifing::verify_knock_packet;
