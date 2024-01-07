@@ -154,40 +154,17 @@ impl Worker {
         let udp_header = UdpPacket::new(payload).ok_or(anyhow!("Malformed UDP packet"))?;
         let src_port = udp_header.get_source();
         let dst_port = udp_header.get_destination();
-        let mut entry = ConntrackEntry::new(src_ip, dst_ip, dst_port, Protocol::Udp);
+        let payload = udp_header.payload();
 
         debug!("nfq {queue_num} UDP packet from {src_ip}:{src_port} to {dst_ip}:{dst_port}");
 
-        if self.is_auth_port(Protocol::Udp, dst_port) {
-            let payload = udp_header.payload();
-
-            match crypto::verify_packet(payload, &self.verifying_key, self.config.auth.allow_skew) {
-                Ok(knock_info) => {
-                    entry.dst_port = knock_info.unlock_port;
-
-                    info!(
-                        "nfq {queue_num} allow {:?}, timestamp: {}",
-                        entry, knock_info.timestamp
-                    );
-
-                    self.conntrack_map.add_entry(entry)?;
-                }
-                Err(e) => {
-                    debug!("nfq {queue_num} malformed auth packet from {src_ip}:{src_port}: {e}")
-                }
-            }
-        } else if let Some(inst) = self.conntrack_map.get_timestamp(&entry)? {
-            // avoid updating timestamp every time
-            if Instant::now().duration_since(inst).as_secs() > 0 {
-                self.conntrack_map.update_timestamp(entry)?;
-            }
-
-            return Ok(Verdict::Accept);
+        let verdict =
+            self.verify_packet(src_ip, src_port, dst_ip, dst_port, Protocol::Udp, payload)?;
+        if verdict != Verdict::Accept {
+            sender.emit_icmpv4_unreachable(&src_ip, ip_packet, &udp_header)?;
         }
 
-        sender.emit_icmpv4_unreachable(&src_ip, ip_packet, &udp_header)?;
-
-        Ok(Verdict::Drop)
+        Ok(verdict)
     }
 
     fn tcp_packet_handler(
@@ -201,14 +178,37 @@ impl Worker {
         let tcp_header = TcpPacket::new(payload).ok_or(anyhow!("Malformed TCP packet"))?;
         let src_port = tcp_header.get_source();
         let dst_port = tcp_header.get_destination();
-        let mut entry = ConntrackEntry::new(src_ip, dst_ip, dst_port, Protocol::Tcp);
+        let payload = tcp_header.payload();
 
         debug!("nfq {queue_num} TCP packet from {src_ip}:{src_port} to {dst_ip}:{dst_port}");
 
-        if self.is_auth_port(Protocol::Tcp, dst_port) {
-            let payload = tcp_header.payload();
+        let verdict =
+            self.verify_packet(src_ip, src_port, dst_ip, dst_port, Protocol::Tcp, payload)?;
+        if verdict != Verdict::Accept {
+            sender.emit_tcp_rst(&src_ip, &dst_ip, &tcp_header)?;
+        }
 
-            match crypto::verify_packet(payload, &self.verifying_key, self.config.auth.allow_skew) {
+        Ok(verdict)
+    }
+
+    fn verify_packet(
+        &self,
+        src_ip: IpAddr,
+        src_port: u16,
+        dst_ip: IpAddr,
+        dst_port: u16,
+        protocol: Protocol,
+        payload: &[u8],
+    ) -> Result<Verdict> {
+        let queue_num = self.queue_num;
+        let mut entry = ConntrackEntry::new(src_ip, dst_ip, dst_port, protocol.clone());
+
+        if self.is_auth_port(protocol, dst_port) {
+            match crypto::verify_knock_packet(
+                payload,
+                &self.verifying_key,
+                self.config.auth.allow_skew,
+            ) {
                 Ok(knock_info) => {
                     entry.dst_port = knock_info.unlock_port;
 
@@ -231,8 +231,6 @@ impl Worker {
 
             return Ok(Verdict::Accept);
         }
-
-        sender.emit_tcp_rst(&src_ip, &dst_ip, &tcp_header)?;
 
         Ok(Verdict::Drop)
     }
