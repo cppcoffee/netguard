@@ -9,7 +9,7 @@ use rsa::signature::Verifier;
 use crate::builder::sha256_digest;
 use crate::{NetGuardData, MAX_PACKET_SIZE};
 
-pub fn verify_packet(
+pub fn verify_knock_packet(
     payload: &[u8],
     verifying_key: &VerifyingKey<Sha256>,
     allow_skew_seconds: u64,

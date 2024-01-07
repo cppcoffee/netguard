@@ -28,7 +28,7 @@ pub struct Auth {
     pub allow_skew: u64,
 }
 
-#[derive(Debug, Deserialize, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Hash, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Protocol {
     Tcp,
