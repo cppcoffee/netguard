@@ -162,7 +162,7 @@ fn auth(
         .context("fail to create transport channel")?;
 
     // Build specific protocol data
-    let data = crypto::build_packet(uport, &key)?;
+    let data = crypto::build_knock_packet(uport, &key)?;
 
     // Create the packet
     let pkt: PktWrapper = match proto {

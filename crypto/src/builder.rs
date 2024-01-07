@@ -23,7 +23,7 @@ pub fn sha256_digest(data: &[u8]) -> Vec<u8> {
 /// signature: [u8]
 /// digest_size: u16  (must be network byte order)
 /// digest: [u8]
-pub fn build_packet(unlock_port: u16, private_key_path: &Path) -> Result<Vec<u8>> {
+pub fn build_knock_packet(unlock_port: u16, private_key_path: &Path) -> Result<Vec<u8>> {
     if !private_key_path.exists() {
         bail!("Private key not exists: {:?}", private_key_path);
     }
