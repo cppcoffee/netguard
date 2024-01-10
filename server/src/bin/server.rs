@@ -46,10 +46,9 @@ fn main() -> Result<()> {
 
     let conntrack_map = Arc::new(ConntrackMap::new());
 
-    for i in 0..config.setting.queue_count {
-        let queue_id = config.setting.queue_start + i;
-
-        let worker = Worker::new(config.clone(), queue_id, conntrack_map.clone())?;
+    let queue_count = config.setting.queue_start + config.setting.queue_count;
+    for queue_num in config.setting.queue_start..=queue_count {
+        let worker = Worker::new(config.clone(), queue_num, conntrack_map.clone())?;
         worker.start()?;
     }
 
