@@ -85,7 +85,6 @@ $ cargo build --release
 
 ## TODO
 
-- IPv6 support
 - Allow IP list
 - Add query and reject connection Interfaces
 - More certificate signing algorithms
