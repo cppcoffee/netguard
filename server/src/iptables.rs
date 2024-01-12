@@ -50,7 +50,9 @@ fn iptables_rule_add(protocol: &str, port: u16, queue_opts: &[String]) -> Result
         args.push(opt.as_str());
     }
 
-    iptables_command(&args)?;
+    for program in &["iptables", "ip6tables"] {
+        iptables_command(program, &args)?;
+    }
 
     Ok(())
 }
@@ -66,15 +68,17 @@ fn iptables_rule_del(protocol: &str, port: u16, queue_opts: &[String]) -> Result
         args.push(opt.as_str());
     }
 
-    iptables_command(&args)?;
+    for program in &["iptables", "ip6tables"] {
+        iptables_command(program, &args)?;
+    }
 
     Ok(())
 }
 
-fn iptables_command(args: &[&str]) -> Result<()> {
-    debug!("command: iptables {:?}", args);
+fn iptables_command(program: &str, args: &[&str]) -> Result<()> {
+    debug!("command: {program} {:?}", args);
 
-    let output = Command::new("iptables").args(args).output()?;
+    let output = Command::new(program).args(args).output()?;
     if !output.status.success() {
         bail!(
             "iptables command failed: {}",

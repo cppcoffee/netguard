@@ -1,10 +1,15 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv6Addr};
 
 use anyhow::{anyhow, bail, Result};
 use pnet::packet::icmp::destination_unreachable::IcmpCodes;
-use pnet::packet::icmp::{IcmpTypes, MutableIcmpPacket};
+use pnet::packet::icmp::{checksum as icmp_checksum, IcmpTypes, MutableIcmpPacket};
+use pnet::packet::icmpv6::{
+    checksum as icmp6_checksum, Icmpv6Code, Icmpv6Types, MutableIcmpv6Packet,
+};
 use pnet::packet::tcp::{self, MutableTcpPacket, TcpFlags, TcpPacket};
-use pnet::packet::{util, Packet};
+use pnet::packet::Packet;
+
+const PORT_UNREACHABLE: u8 = 4;
 
 pub fn build_icmpv4_unreachable<'a>(data: &'a mut [u8]) -> Result<MutableIcmpPacket<'a>> {
     let mut icmp_packet =
@@ -12,8 +17,27 @@ pub fn build_icmpv4_unreachable<'a>(data: &'a mut [u8]) -> Result<MutableIcmpPac
 
     icmp_packet.set_icmp_type(IcmpTypes::DestinationUnreachable);
     icmp_packet.set_icmp_code(IcmpCodes::DestinationPortUnreachable);
+    icmp_packet.set_payload(&[]);
 
-    let checksum = util::checksum(icmp_packet.packet(), 1);
+    let checksum = icmp_checksum(&icmp_packet.to_immutable());
+    icmp_packet.set_checksum(checksum);
+
+    Ok(icmp_packet)
+}
+
+pub fn build_icmpv6_unreachable<'a>(
+    data: &'a mut [u8],
+    src: &Ipv6Addr,
+    dest: &Ipv6Addr,
+) -> Result<MutableIcmpv6Packet<'a>> {
+    let mut icmp_packet =
+        MutableIcmpv6Packet::new(&mut data[..]).ok_or(anyhow!("Failed to create ICMPv6 packet"))?;
+
+    icmp_packet.set_icmpv6_type(Icmpv6Types::DestinationUnreachable);
+    icmp_packet.set_icmpv6_code(Icmpv6Code(PORT_UNREACHABLE));
+    icmp_packet.set_payload(&[]);
+
+    let checksum = icmp6_checksum(&icmp_packet.to_immutable(), src, dest);
     icmp_packet.set_checksum(checksum);
 
     Ok(icmp_packet)
@@ -53,6 +77,7 @@ pub fn build_tcp_reset<'a>(
             bail!("Source and destination IP addresses must be both IPv4 or IPv6")
         }
     };
+
     tcp_packet.set_checksum(checksum);
 
     Ok(tcp_packet)
@@ -104,7 +129,7 @@ mod tests {
     #[test]
     fn test_build_icmpv4_unreachable() {
         let mut data = vec![0u8; 128];
-        let mut icmp_packet = build_icmpv4_unreachable(&mut data).unwrap();
+        let icmp_packet = build_icmpv4_unreachable(&mut data).unwrap();
 
         assert_eq!(
             icmp_packet.get_icmp_type(),
@@ -116,14 +141,23 @@ mod tests {
             IcmpCodes::DestinationPortUnreachable
         );
 
+        assert_eq!(icmp_packet.get_checksum(), 0xfcfc);
+    }
+
+    #[test]
+    fn test_build_icmpv6_unreachable() {
+        let mut data = vec![0u8; 128];
+        let src = Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1);
+        let dest = Ipv6Addr::new(2, 2, 2, 2, 2, 2, 2, 2);
+        let icmp_packet = build_icmpv6_unreachable(&mut data, &src, &dest).unwrap();
+
         assert_eq!(
-            icmp_packet.get_checksum(),
-            util::checksum(icmp_packet.packet(), 1)
+            icmp_packet.get_icmpv6_type(),
+            Icmpv6Types::DestinationUnreachable
         );
 
-        let checksum = util::checksum(icmp_packet.packet(), 1);
-        icmp_packet.set_checksum(checksum);
-        assert_eq!(icmp_packet.get_checksum(), checksum);
+        assert_eq!(icmp_packet.get_icmpv6_code(), Icmpv6Code(PORT_UNREACHABLE));
+        assert_eq!(icmp_packet.get_checksum(), 0xFE29);
     }
 
     #[test]

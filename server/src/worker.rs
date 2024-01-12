@@ -7,6 +7,7 @@ use anyhow::{anyhow, Result};
 use nfq::{Queue, Verdict};
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::ipv4::Ipv4Packet;
+use pnet::packet::ipv6::Ipv6Packet;
 use pnet::packet::tcp::TcpPacket;
 use pnet::packet::udp::UdpPacket;
 use pnet::packet::Packet;
@@ -62,6 +63,8 @@ impl Worker {
                 return;
             }
 
+            info!("nfq {queue_num} worker started");
+
             loop {
                 if let Err(e) = self.event_handler(&mut queue) {
                     error!("nfq {queue_num} failed handle event: {e}");
@@ -81,7 +84,7 @@ impl Worker {
 
         match version {
             4 => verdict = self.ipv4_packet_handler(payload)?,
-            //6 => verdict = self.ipv6_packet_handler( payload)?,
+            6 => verdict = self.ipv6_packet_handler(payload)?,
             x => error!("nfq {} received unknown IP version: {x}", self.queue_num),
         }
 
@@ -111,6 +114,26 @@ impl Worker {
         Ok(verdict)
     }
 
+    fn ipv6_packet_handler(&mut self, payload: &[u8]) -> Result<Verdict> {
+        let ip_header = Ipv6Packet::new(payload).ok_or(anyhow!("Malformed IPv6 packet"))?;
+
+        let source = IpAddr::V6(ip_header.get_source());
+        let destination = IpAddr::V6(ip_header.get_destination());
+        let protocol = ip_header.get_next_header();
+
+        let ip_packet = util::packet_header(&ip_header);
+
+        let verdict = self.transport_protocol_handler(
+            source,
+            destination,
+            protocol,
+            ip_packet,
+            ip_header.payload(),
+        )?;
+
+        Ok(verdict)
+    }
+
     fn transport_protocol_handler(
         &mut self,
         src_ip: IpAddr,
@@ -119,24 +142,24 @@ impl Worker {
         ip_packet: &[u8],
         payload: &[u8],
     ) -> Result<Verdict> {
+        let mut verdict = Verdict::Drop;
+
         match protocol {
             IpNextHeaderProtocols::Udp => {
-                let verdict = self.udp_packet_handler(src_ip, dst_ip, ip_packet, payload)?;
-                return Ok(verdict);
+                verdict = self.udp_packet_handler(src_ip, dst_ip, ip_packet, payload)?;
             }
             IpNextHeaderProtocols::Tcp => {
-                let verdict = self.tcp_packet_handler(src_ip, dst_ip, payload)?;
-                return Ok(verdict);
+                verdict = self.tcp_packet_handler(src_ip, dst_ip, payload)?;
             }
             _ => {
                 debug!(
-                    "nfq {} unknown transport protocol: {protocol}",
+                    "nfq {} unknown transport protocol: {protocol}, skip it",
                     self.queue_num
                 );
             }
         }
 
-        Ok(Verdict::Drop)
+        Ok(verdict)
     }
 
     fn udp_packet_handler(
@@ -159,7 +182,7 @@ impl Worker {
 
         if verdict != Verdict::Accept {
             self.sender
-                .emit_icmpv4_unreachable(&src_ip, ip_packet, &udp_header)?;
+                .emit_icmp_unreachable(&dst_ip, &src_ip, ip_packet, &udp_header)?;
         }
 
         Ok(verdict)
