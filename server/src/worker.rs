@@ -3,7 +3,8 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
+use ipnet::IpNet;
 use nfq::{Queue, Verdict};
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::ipv4::Ipv4Packet;
@@ -18,6 +19,9 @@ use rsa::RsaPublicKey;
 use tracing::{debug, error, info};
 
 use crate::{util, Config, ConntrackEntry, ConntrackMap, Protocol, Sender};
+
+const IPV4_ADDR_BITS: u8 = 32;
+const IPV6_ADDR_BITS: u8 = 128;
 
 pub struct Worker {
     queue_num: u16,
@@ -98,6 +102,11 @@ impl Worker {
         let ip_header = Ipv4Packet::new(payload).ok_or(anyhow!("Malformed IPv4 packet"))?;
 
         let source = IpAddr::V4(ip_header.get_source());
+
+        if self.is_allow_ip(&source)? {
+            return Ok(Verdict::Accept);
+        }
+
         let destination = IpAddr::V4(ip_header.get_destination());
         let protocol = ip_header.get_next_level_protocol();
 
@@ -118,6 +127,11 @@ impl Worker {
         let ip_header = Ipv6Packet::new(payload).ok_or(anyhow!("Malformed IPv6 packet"))?;
 
         let source = IpAddr::V6(ip_header.get_source());
+
+        if self.is_allow_ip(&source)? {
+            return Ok(Verdict::Accept);
+        }
+
         let destination = IpAddr::V6(ip_header.get_destination());
         let protocol = ip_header.get_next_header();
 
@@ -254,6 +268,22 @@ impl Worker {
         }
 
         Ok(Verdict::Drop)
+    }
+
+    fn is_allow_ip(&self, source: &IpAddr) -> Result<bool> {
+        if self.config.filter.allow_ips.is_empty() {
+            return Ok(false);
+        }
+
+        let bits = match source {
+            IpAddr::V4(_) => IPV4_ADDR_BITS,
+            IpAddr::V6(_) => IPV6_ADDR_BITS,
+        };
+
+        let src_ip =
+            IpNet::new(*source, bits).context(format!("IpNet::new({}, {}) fail", source, bits))?;
+
+        Ok(self.config.filter.allow_ips.contains(&src_ip))
     }
 
     fn is_auth_port(&self, protocol: Protocol, dst_port: u16) -> bool {

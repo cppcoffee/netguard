@@ -85,7 +85,6 @@ $ cargo build --release
 
 ## TODO
 
-- Allow IP list
 - Add query and reject connection Interfaces
 - More certificate signing algorithms
 - Reload configuration file

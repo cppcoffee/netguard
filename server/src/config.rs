@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use ipnet::IpNet;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -51,6 +52,7 @@ pub struct Filter {
     pub connection_timeout: u64,
     pub tcp: Rule,
     pub udp: Rule,
+    pub allow_ips: Vec<IpNet>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,11 +64,16 @@ pub struct Rule {
 impl Config {
     pub fn from_file(path: &Path) -> Result<Arc<Self>> {
         let s = fs::read_to_string(path).context(format!("can't read file: {}", path.display()))?;
-        let config: Config = toml::from_str(&s)?;
+        let mut config: Config = toml::from_str(&s)?;
 
         config.verify()?;
+        config.aggregate();
 
         Ok(Arc::new(config))
+    }
+
+    pub fn aggregate(&mut self) {
+        self.filter.allow_ips = IpNet::aggregate(&self.filter.allow_ips);
     }
 
     fn verify(&self) -> Result<()> {
@@ -128,6 +135,7 @@ mod tests {
                     ports: vec![],
                     reject: false,
                 },
+                allow_ips: vec![],
             },
         };
 
