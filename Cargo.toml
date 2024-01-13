@@ -16,15 +16,16 @@ anyhow = "1.0"
 nfq = "0.2"
 # dashmap = "5.5"
 clap = { version = "4.4", features = ["derive"] }
-pnet = { version = "0.34", features = ["serde"] }
+pnet = { version = "0.34", default-features = false, features = ["std", "serde"] }
+ipnet = { version = "2.9", default-features = false, features = ["std", "serde"] }
 libc = "0.2"
 
 # crypto
 rand = "0.8"
-rsa = { version = "0.9", features = ["sha2", "std", "pem"] }
+rsa = { version = "0.9", default-features = false, features = ["sha2", "std", "pem"] }
 
 # serde
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", default-features = false, features = ["std", "derive"] }
 toml = "0.8"
 
 crypto = { path = "./crypto" }

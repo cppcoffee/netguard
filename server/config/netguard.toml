@@ -37,8 +37,7 @@ connection_timeout = 300
 #  1min. unit: seconds
 reclaim_interval = 60
 
-# TODO: more filter
-# allow_ips = ["192.168.1.0/24"]
+allow_ips = ["192.168.1.0/24"]
 
 [filter.tcp]
 # filter tcp 8000 port

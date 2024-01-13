@@ -15,6 +15,7 @@ nfq = { workspace = true }
 clap = { workspace = true }
 pnet = { workspace = true }
 libc = { workspace = true }
+ipnet = { workspace = true }
 
 # crypto
 rand = { workspace = true }
