@@ -17,8 +17,8 @@ nfq = "0.2"
 # dashmap = "5.5"
 clap = { version = "4.4", features = ["derive"] }
 pnet = { version = "0.34", default-features = false, features = ["std", "serde"] }
-ipnet = { version = "2.9", default-features = false, features = ["std", "serde"] }
 libc = "0.2"
+ipnet = { version = "2.9", default-features = false, features = ["std", "serde"] }
 
 # crypto
 rand = "0.8"
