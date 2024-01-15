@@ -154,9 +154,10 @@ mod tests {
 
     #[test]
     fn test_build_tcp_reset() {
-        let incoming = TcpPacket::new(&[0u8; 40]).unwrap();
+        let tcp_min_size = TcpPacket::minimum_packet_size();
+        let incoming = TcpPacket::new(&[0u8; tcp_min_size]).unwrap();
 
-        let mut buffer = vec![0u8; 128];
+        let mut buffer = vec![0u8; tcp_min_size];
         let mut tcp_reset = MutableTcpPacket::owned(buffer.clone()).unwrap();
 
         build_tcp_reset(
