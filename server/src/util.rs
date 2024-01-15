@@ -159,10 +159,10 @@ mod tests {
         let incoming = MutableTcpPacket::new(&[0u8; 40]).unwrap();
 
         let mut buffer = vec![0u8; 128];
-        let mut tcp_packet = MutableTcpPacket::owned(buffer.clone()).unwrap();
+        let mut tcp_reset = MutableTcpPacket::owned(buffer.clone()).unwrap();
 
         build_tcp_reset(
-            &mut tcp_packet,
+            &mut tcp_reset,
             &IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)),
             &IpAddr::V4(Ipv4Addr::new(2, 2, 2, 2)),
             &incoming,
