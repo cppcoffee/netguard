@@ -108,7 +108,6 @@ pub fn set_rlimit_nofile(n: u64) -> Result<u64> {
     Ok(value)
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,7 +117,9 @@ mod tests {
     #[test]
     fn test_build_icmpv4_unreachable() {
         let mut data = vec![0u8; 128];
-        let icmp_packet = build_icmpv4_unreachable(&mut data).unwrap();
+        let mut icmp_packet = MutableIcmpPacket::owned(data.clone()).unwrap();
+
+        build_icmpv4_unreachable(&mut icmp_packet);
 
         assert_eq!(
             icmp_packet.get_icmp_type(),
@@ -138,7 +139,9 @@ mod tests {
         let mut data = vec![0u8; 128];
         let src = Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1);
         let dest = Ipv6Addr::new(2, 2, 2, 2, 2, 2, 2, 2);
-        let icmp_packet = build_icmpv6_unreachable(&mut data, &src, &dest).unwrap();
+
+        let mut icmp_packet = MutableIcmpv6Packet::owned(data.clone()).unwrap();
+        build_icmpv6_unreachable(&mut icmp_packet, &src, &dest).unwrap();
 
         assert_eq!(
             icmp_packet.get_icmpv6_type(),
@@ -150,23 +153,16 @@ mod tests {
     }
 
     #[test]
-    fn test_packet_header() {
-        let udp_packet = UdpPacket::new(&[0u8; 20]).unwrap();
-        assert_eq!(packet_header(&udp_packet), &[0u8; 8]);
-
-        let tcp_packet = TcpPacket::new(&[0u8; 40]).unwrap();
-        assert_eq!(packet_header(&tcp_packet), &[0u8; 20]);
-    }
-
-    #[test]
     fn test_build_tcp_reset() {
         let tcp_min_size = TcpPacket::minimum_packet_size();
 
         let incoming = MutableTcpPacket::new(&[0u8; 40]).unwrap();
 
         let mut buffer = vec![0u8; 128];
-        let tcp_reset = build_tcp_reset(
-            &mut buffer[..tcp_min_size],
+        let mut tcp_packet = MutableTcpPacket::owned(buffer.clone()).unwrap();
+
+        build_tcp_reset(
+            &mut tcp_packet,
             &IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)),
             &IpAddr::V4(Ipv4Addr::new(2, 2, 2, 2)),
             &incoming,
@@ -186,4 +182,3 @@ mod tests {
         assert_eq!(tcp_reset.payload().len(), 0);
     }
 }
-*/
