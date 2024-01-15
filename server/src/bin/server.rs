@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Parser;
-use signal_hook::consts::TERM_SIGNALS;
+use signal_hook::consts::{SIGINT, SIGQUIT, SIGTERM};
 use signal_hook::iterator::Signals;
 use tikv_jemallocator::Jemalloc;
 use tracing::{debug, info};
@@ -44,12 +44,15 @@ fn main() -> Result<()> {
     util::set_process_priority(config.setting.worker_priority);
     util::set_rlimit_nofile(config.setting.worker_rlimit_nofile)?;
 
+    let mut workers = Vec::new();
     let conntrack_map = Arc::new(ConntrackMap::new());
 
     let queue_count = config.setting.queue_start + config.setting.queue_count;
     for queue_num in config.setting.queue_start..=queue_count {
-        let worker = Worker::new(config.clone(), queue_num, conntrack_map.clone())?;
-        worker.start()?;
+        let w = Worker::new(config.clone(), queue_num, conntrack_map.clone())?;
+        w.start()?;
+
+        workers.push(w);
     }
 
     ConntrackReclaim::new(config.clone(), conntrack_map.clone()).start();
@@ -66,7 +69,8 @@ fn main() -> Result<()> {
 }
 
 fn wait_for_signal() -> Result<()> {
-    let sigs = TERM_SIGNALS;
+    let sigs = vec![SIGTERM, SIGQUIT, SIGINT];
+
     let mut signals = Signals::new(sigs)?;
 
     for signal in &mut signals {

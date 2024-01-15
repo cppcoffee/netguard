@@ -8,5 +8,5 @@ pub mod worker;
 
 pub use config::{Config, Protocol};
 pub use conntrack::{ConntrackEntry, ConntrackMap, ConntrackReclaim};
-pub use reject::Sender;
+pub use reject::RejectPacketSender;
 pub use worker::Worker;
