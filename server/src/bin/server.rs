@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Parser;
-use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
+use signal_hook::consts::{SIGINT, SIGQUIT, SIGTERM};
 use signal_hook::iterator::Signals;
 use tikv_jemallocator::Jemalloc;
 use tracing::{debug, info};
@@ -59,7 +59,7 @@ fn main() -> Result<()> {
 
     iptables::rules_create(&config)?;
 
-    wait_for_signal(&args, &workers)?;
+    wait_for_signal(&workers)?;
 
     iptables::rules_destroy(&config)?;
 
@@ -68,7 +68,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn wait_for_signal(args: &Args, workers: &[Worker]) -> Result<()> {
+fn wait_for_signal(workers: &[Worker]) -> Result<()> {
     let sigs = vec![SIGTERM, SIGQUIT, SIGINT];
 
     let mut signals = Signals::new(sigs)?;

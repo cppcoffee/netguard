@@ -141,7 +141,7 @@ mod tests {
         let dest = Ipv6Addr::new(2, 2, 2, 2, 2, 2, 2, 2);
 
         let mut icmp_packet = MutableIcmpv6Packet::owned(data.clone()).unwrap();
-        build_icmpv6_unreachable(&mut icmp_packet, &src, &dest).unwrap();
+        build_icmpv6_unreachable(&mut icmp_packet, &src, &dest);
 
         assert_eq!(
             icmp_packet.get_icmpv6_type(),
@@ -154,9 +154,7 @@ mod tests {
 
     #[test]
     fn test_build_tcp_reset() {
-        let tcp_min_size = TcpPacket::minimum_packet_size();
-
-        let incoming = MutableTcpPacket::new(&[0u8; 40]).unwrap();
+        let incoming = TcpPacket::new(&[0u8; 40]).unwrap();
 
         let mut buffer = vec![0u8; 128];
         let mut tcp_reset = MutableTcpPacket::owned(buffer.clone()).unwrap();
@@ -177,7 +175,10 @@ mod tests {
         assert_eq!(tcp_reset.get_window(), 0);
         assert_eq!(tcp_reset.get_reserved(), 0);
         assert_eq!(tcp_reset.get_urgent_ptr(), 0);
-        assert_eq!(tcp_reset.get_data_offset(), (tcp_min_size / 4) as u8);
+        assert_eq!(
+            tcp_reset.get_data_offset(),
+            (TcpPacket::minimum_packet_size() / 4) as u8
+        );
         assert_eq!(tcp_reset.get_options().len(), 0);
         assert_eq!(tcp_reset.payload().len(), 0);
     }
