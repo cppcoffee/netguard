@@ -59,7 +59,7 @@ fn main() -> Result<()> {
 
     iptables::rules_create(&config)?;
 
-    wait_for_signal(&workers)?;
+    wait_for_signal()?;
 
     iptables::rules_destroy(&config)?;
 
@@ -68,7 +68,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn wait_for_signal(workers: &[Worker]) -> Result<()> {
+fn wait_for_signal() -> Result<()> {
     let sigs = vec![SIGTERM, SIGQUIT, SIGINT];
 
     let mut signals = Signals::new(sigs)?;
