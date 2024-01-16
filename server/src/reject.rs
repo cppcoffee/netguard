@@ -177,7 +177,7 @@ impl Sender {
                         icmp_packet,
                     } => {
                         if let Err(e) = self.icmp.send_to(icmp_packet, destination) {
-                            error!("Failed to send ICMP packet: {}", e);
+                            error!("Failed to send ICMP packet: {:?}", e);
                         }
                     }
                     Message::Icmpv6 {
@@ -185,7 +185,7 @@ impl Sender {
                         icmp_packet,
                     } => {
                         if let Err(e) = self.icmpv6.send_to(icmp_packet, destination) {
-                            error!("Failed to send ICMPv6 packet: {}", e);
+                            error!("Failed to send ICMPv6 packet: {:?}", e);
                         }
                     }
                     Message::Tcp {
@@ -194,12 +194,12 @@ impl Sender {
                     } => match destination {
                         IpAddr::V4(_) => {
                             if let Err(e) = self.tcp.send_to(tcp_packet, destination) {
-                                error!("Failed to send TCP packet: {}", e);
+                                error!("Failed to send TCP packet: {:?}", e);
                             }
                         }
                         IpAddr::V6(_) => {
                             if let Err(e) = self.tcp6.send_to(tcp_packet, destination) {
-                                error!("Failed to send TCP packet: {}", e);
+                                error!("Failed to send TCP packet: {:?}", e);
                             }
                         }
                     },
