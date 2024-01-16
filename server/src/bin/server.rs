@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Parser;
-use signal_hook::consts::{SIGINT, SIGQUIT, SIGTERM};
+use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
 use signal_hook::iterator::Signals;
 use tikv_jemallocator::Jemalloc;
 use tracing::{debug, info};
@@ -59,7 +59,7 @@ fn main() -> Result<()> {
 
     iptables::rules_create(&config)?;
 
-    wait_for_signal()?;
+    wait_for_signal(&args, &workers)?;
 
     iptables::rules_destroy(&config)?;
 
@@ -68,8 +68,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn wait_for_signal() -> Result<()> {
-    let sigs = vec![SIGTERM, SIGQUIT, SIGINT];
+fn wait_for_signal(args: &Args, workers: &[Worker]) -> Result<()> {
+    let sigs = vec![SIGTERM, SIGQUIT, SIGINT, SIGHUP];
 
     let mut signals = Signals::new(sigs)?;
 
@@ -77,6 +77,16 @@ fn wait_for_signal() -> Result<()> {
         debug!("Received a signal {:?}", signal);
 
         match signal {
+            SIGHUP => match Config::from_file(&args.config) {
+                Ok(new_config) => {
+                    for worker in workers {
+                        worker.update_config(new_config.clone());
+                    }
+                }
+                Err(e) => {
+                    info!("Failed to reload config: {e}")
+                }
+            },
             term_sig => {
                 info!("Received a termination signal {:?}", term_sig);
                 break;
