@@ -66,7 +66,7 @@ impl Worker {
         let this = self.clone();
         thread::spawn(move || {
             if let Err(e) = util::set_thread_priority() {
-                error!("nfq {queue_num} failed to set thread priority: {e}");
+                error!("nfq {} failed to set thread priority: {:?}", queue_num, e);
                 return;
             }
 
@@ -74,7 +74,7 @@ impl Worker {
 
             loop {
                 if let Err(e) = this.event_handler(&mut queue) {
-                    error!("nfq {queue_num} failed handle event: {e}");
+                    error!("nfq {} failed handle event: {}", queue_num, e);
                     continue;
                 }
             }

@@ -31,7 +31,7 @@ impl ConntrackReclaim {
                     info!("reclaim expired entries: {}, total: {}", prev - len, len);
                 }
                 Err(e) => {
-                    error!("reclaim expired entries failed: {e}")
+                    error!("reclaim expired entries failed: {:?}", e)
                 }
             }
         });
