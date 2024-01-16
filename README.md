@@ -69,6 +69,15 @@ $ netguard-tool keygen --help
 ```
 
 
+### Reload config
+
+Reload `netguard-server` config file:
+
+```shell
+$ pkill -HUP netguard-server
+```
+
+
 ## Build
 
 Build release version.
@@ -87,7 +96,6 @@ $ cargo build --release
 
 - Add query and reject connection Interfaces
 - More certificate signing algorithms
-- Reload configuration file
 - Hot update bin executable program
 - Audit log
 - Knock SDK APIs
