@@ -18,4 +18,3 @@ pub enum Message {
         tcp_packet: MutableTcpPacket<'static>,
     },
 }
-

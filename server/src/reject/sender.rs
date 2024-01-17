@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use std::sync::mpsc;
 use std::{ptr, thread};
 
-use anyhow::{anyhow, bail, Result, Context};
+use anyhow::{anyhow, bail, Context, Result};
 use log::error;
 use pnet::packet::icmp::MutableIcmpPacket;
 use pnet::packet::icmpv6::MutableIcmpv6Packet;
@@ -171,30 +171,36 @@ impl Sender {
             Message::Icmp {
                 destination,
                 icmp_packet,
-            } => self
-                .icmp
-                .send_to(icmp_packet, destination)
-                .context("send ICMP packet"),
+            } => {
+                self.icmp
+                    .send_to(icmp_packet, destination)
+                    .context("send ICMP packet")?;
+            }
             Message::Icmpv6 {
                 destination,
                 icmp_packet,
-            } => self
-                .icmpv6
-                .send_to(icmp_packet, destination)
-                .context("send ICMPv6 packet"),
+            } => {
+                self.icmpv6
+                    .send_to(icmp_packet, destination)
+                    .context("send ICMPv6 packet")?;
+            }
             Message::Tcp {
                 destination,
                 tcp_packet,
             } => match destination {
-                IpAddr::V4(_) => self
-                    .tcp
-                    .send_to(tcp_packet, destination)
-                    .context("send TCP packet"),
-                IpAddr::V6(_) => self
-                    .tcp6
-                    .send_to(tcp_packet, destination)
-                    .context("send TCPv6 packet"),
+                IpAddr::V4(_) => {
+                    self.tcp
+                        .send_to(tcp_packet, destination)
+                        .context("send TCP packet")?;
+                }
+                IpAddr::V6(_) => {
+                    self.tcp6
+                        .send_to(tcp_packet, destination)
+                        .context("send TCPv6 packet")?;
+                }
             },
         }
+
+        Ok(())
     }
 }
