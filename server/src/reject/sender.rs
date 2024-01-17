@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use std::sync::mpsc;
 use std::{ptr, thread};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Result, Context};
 use log::error;
 use pnet::packet::icmp::MutableIcmpPacket;
 use pnet::packet::icmpv6::MutableIcmpv6Packet;
