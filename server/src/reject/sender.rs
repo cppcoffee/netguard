@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use std::sync::mpsc;
 use std::{ptr, thread};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use log::error;
 use pnet::packet::icmp::MutableIcmpPacket;
 use pnet::packet::icmpv6::MutableIcmpv6Packet;
@@ -13,6 +13,7 @@ use pnet::transport::{
     transport_channel, TransportChannelType, TransportProtocol, TransportSender,
 };
 
+use crate::reject::Message;
 use crate::util;
 
 const ICMP_UNREACHABLE_HEADER_SIZE: usize = 8;
@@ -97,7 +98,7 @@ impl RejectPacketSender {
     ) -> Result<()> {
         let tcp_min_size = TcpPacket::minimum_packet_size();
 
-        let buffer = Box::new(MaybeUninit::<[u8; BUFFER_SIZE]>::uninit());
+        let buffer = MaybeUninit::<[u8; BUFFER_SIZE]>::uninit();
         let buffer = unsafe { ptr::read(buffer.as_ptr() as *const [u8; BUFFER_SIZE]) };
 
         let mut tcp_packet = MutableTcpPacket::owned(buffer[..tcp_min_size].to_vec())
@@ -112,21 +113,6 @@ impl RejectPacketSender {
 
         Ok(())
     }
-}
-
-enum Message {
-    Icmp {
-        destination: IpAddr,
-        icmp_packet: MutableIcmpPacket<'static>,
-    },
-    Icmpv6 {
-        destination: IpAddr,
-        icmp_packet: MutableIcmpv6Packet<'static>,
-    },
-    Tcp {
-        destination: IpAddr,
-        tcp_packet: MutableTcpPacket<'static>,
-    },
 }
 
 struct Sender {
@@ -171,42 +157,50 @@ impl Sender {
 
         thread::spawn(move || {
             for msg in rx {
-                match msg {
-                    Message::Icmp {
-                        destination,
-                        icmp_packet,
-                    } => {
-                        if let Err(e) = self.icmp.send_to(icmp_packet, destination) {
-                            error!("Failed to send ICMP packet: {:?}", e);
-                        }
-                    }
-                    Message::Icmpv6 {
-                        destination,
-                        icmp_packet,
-                    } => {
-                        if let Err(e) = self.icmpv6.send_to(icmp_packet, destination) {
-                            error!("Failed to send ICMPv6 packet: {:?}", e);
-                        }
-                    }
-                    Message::Tcp {
-                        destination,
-                        tcp_packet,
-                    } => match destination {
-                        IpAddr::V4(_) => {
-                            if let Err(e) = self.tcp.send_to(tcp_packet, destination) {
-                                error!("Failed to send TCP packet: {:?}", e);
-                            }
-                        }
-                        IpAddr::V6(_) => {
-                            if let Err(e) = self.tcp6.send_to(tcp_packet, destination) {
-                                error!("Failed to send TCP packet: {:?}", e);
-                            }
-                        }
-                    },
+                if let Err(e) = self.message_handler(msg) {
+                    error!("Failed to handle message: {:?}", e);
                 }
             }
         });
 
         tx
+    }
+
+    fn message_handler(&mut self, msg: Message) -> Result<()> {
+        match msg {
+            Message::Icmp {
+                destination,
+                icmp_packet,
+            } => {
+                self.icmp
+                    .send_to(icmp_packet, destination)
+                    .context("send ICMP packet")?;
+            }
+            Message::Icmpv6 {
+                destination,
+                icmp_packet,
+            } => {
+                self.icmpv6
+                    .send_to(icmp_packet, destination)
+                    .context("send ICMPv6 packet")?;
+            }
+            Message::Tcp {
+                destination,
+                tcp_packet,
+            } => match destination {
+                IpAddr::V4(_) => {
+                    self.tcp
+                        .send_to(tcp_packet, destination)
+                        .context("send TCP packet")?;
+                }
+                IpAddr::V6(_) => {
+                    self.tcp6
+                        .send_to(tcp_packet, destination)
+                        .context("send TCPv6 packet")?;
+                }
+            },
+        }
+
+        Ok(())
     }
 }

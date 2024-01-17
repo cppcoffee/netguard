@@ -111,12 +111,11 @@ pub fn set_rlimit_nofile(n: u64) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pnet::packet::udp::UdpPacket;
     use std::net::{IpAddr, Ipv4Addr};
 
     #[test]
     fn test_build_icmpv4_unreachable() {
-        let mut data = vec![0u8; 128];
+        let data = vec![0u8; 128];
         let mut icmp_packet = MutableIcmpPacket::owned(data.clone()).unwrap();
 
         build_icmpv4_unreachable(&mut icmp_packet);
@@ -136,7 +135,7 @@ mod tests {
 
     #[test]
     fn test_build_icmpv6_unreachable() {
-        let mut data = vec![0u8; 128];
+        let data = vec![0u8; 128];
         let src = Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1);
         let dest = Ipv6Addr::new(2, 2, 2, 2, 2, 2, 2, 2);
 
@@ -157,7 +156,7 @@ mod tests {
         let tcp_min_size = TcpPacket::minimum_packet_size();
         let incoming = TcpPacket::new(&[0u8; 40]).unwrap();
 
-        let mut buffer = vec![0u8; 128];
+        let buffer = vec![0u8; 128];
         let mut tcp_reset = MutableTcpPacket::owned(buffer[..tcp_min_size].to_owned()).unwrap();
 
         build_tcp_reset(
