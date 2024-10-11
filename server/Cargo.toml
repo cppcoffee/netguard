@@ -33,7 +33,7 @@ hashbrown = "0.14"
 arc-swap = "1.6"
 
 # logger
-log = { version = "0.4" }
+log = { version = "0.4", features = ["serde", "kv_unstable_std"] }
 tracing = { version = "0.1", features = ["std", "log"] }
 tracing-subscriber = { version = "0.3", features = ["std", "fmt", "env-filter"] }
 humantime = "2.1"

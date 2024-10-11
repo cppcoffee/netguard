@@ -79,17 +79,33 @@ pub fn packet_header(p: &impl Packet) -> &[u8] {
 }
 
 pub fn set_thread_priority() -> Result<()> {
-    let rc = unsafe {
+    unsafe {
+        let policy = libc::SCHED_FIFO;
         let handle = libc::pthread_self();
         let mut param: libc::sched_param = std::mem::zeroed();
-        param.sched_priority = libc::sched_get_priority_max(libc::SCHED_FIFO);
 
-        let policy = libc::SCHED_FIFO;
-        libc::pthread_setschedparam(handle, policy, &param)
-    };
+        param.sched_priority = libc::sched_get_priority_max(policy);
+        if param.sched_priority == -1 {
+            bail!(
+                "failed to sched_get_priority_max(SCHED_FIFO), errno={}",
+                *libc::__errno_location()
+            )
+        }
 
-    if rc != 0 {
-        bail!("Failed to set thread priority: {}", rc);
+        let rc = libc::pthread_setschedparam(handle, policy, &param);
+        if rc != 0 {
+            bail!(
+                "Failed to set thread priority rc={}, errno={}",
+                rc,
+                *libc::__errno_location()
+            );
+        }
+
+        log::debug!(
+            "thread use policy={} sched_priority={}",
+            policy,
+            param.sched_priority
+        );
     }
 
     Ok(())
