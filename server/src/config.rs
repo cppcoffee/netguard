@@ -63,10 +63,13 @@ pub struct Rule {
 
 impl Config {
     pub fn from_file(path: &Path) -> Result<Arc<Self>> {
-        let s = fs::read_to_string(path).context(format!("can't read file: {}", path.display()))?;
-        let mut config: Config = toml::from_str(&s)?;
+        let s = fs::read_to_string(path).context(format!("can't read file: {:?}", path))?;
+        let mut config: Config =
+            toml::from_str(&s).context(format!("failed to parse toml: {:?}", path))?;
 
-        config.verify()?;
+        config
+            .verify()
+            .context(format!("failed to verify config file: {:?}", path))?;
         config.aggregate();
 
         Ok(Arc::new(config))

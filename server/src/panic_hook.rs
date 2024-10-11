@@ -21,8 +21,8 @@ pub fn log_panic(panic: &PanicInfo) {
             backtrace = &backtrace_str,
             "panic.file" = location.file(),
             // TODO: use u32
-            "panic.line" = location.line().to_string(),
-            "panic.column" = location.column().to_string();
+            "panic.line" = location.line(),
+            "panic.column" = location.column();
             "{}",
             panic,
         );

@@ -39,9 +39,13 @@ impl Worker {
         queue_num: u16,
         conntrack_map: Arc<ConntrackMap>,
     ) -> Result<Worker> {
-        let public_key = RsaPublicKey::read_pkcs1_pem_file(&config.auth.key)?;
+        let public_key = RsaPublicKey::read_pkcs1_pem_file(&config.auth.key).context(format!(
+            "failed to read auth pem key: {:?}",
+            config.auth.key
+        ))?;
+
         let verifying_key = Arc::new(VerifyingKey::<Sha256>::new(public_key));
-        let reject = RejectPacketSender::new()?;
+        let reject = RejectPacketSender::new().context("failed to init reject packet sender")?;
 
         Ok(Worker {
             config: Arc::new(ArcSwap::new(config)),
