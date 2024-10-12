@@ -92,6 +92,10 @@ or
 $ cargo build --release
 ```
 
+## Notice
+
+The `nfqueue` function is provided by `iptables`, before starting `netguard-server`, you need to make sure that `iptables` is started.
+
 ## TODO
 
 - Add query and reject connection Interfaces
