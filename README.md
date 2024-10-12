@@ -39,11 +39,15 @@ $ netguard-server -c ./netguard.toml
 
 ### Run knock tool
 
-On client site, Using `netguard-tool` to send knock packets:
+On client site, Using `netguard-tool` to send TCP port knock packets.
+
+The following command sends a knock packet to unlock TCP port 10022:
 
 ```shell
 $ sudo ./netguard-tool auth --server 45.76.195.141 --protocol=tcp --unlock 10022 --key=./rsa_key
 ```
+
+If want to unlock a UDP port, use `--protocol=udp`。
 
 ### Example
 
